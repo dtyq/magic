@@ -21,6 +21,7 @@ const PROVIDER_CODE_TO_SERVICE_PROVIDER_MAP: Partial<Record<string, AiModel.Serv
 	microsoftazure: AiModel.ServiceProvider.MicrosoftAzure,
 	azure: AiModel.ServiceProvider.MicrosoftAzure,
 	openrouter: AiModel.ServiceProvider.OpenRouter,
+	requesty: AiModel.ServiceProvider.Requesty,
 	deepseek: AiModel.ServiceProvider.DeepSeek,
 	alibabacloud: AiModel.ServiceProvider.DashScope,
 	dashscope: AiModel.ServiceProvider.DashScope,
@@ -48,6 +49,7 @@ const PROVIDER_CODE_TO_SERVICE_PROVIDER_MAP: Partial<Record<string, AiModel.Serv
 
 const PROVIDER_URL_PLACEHOLDER_OVERRIDE_MAP: Record<string, string> = {
 	openrouter: "https://openrouter.ai/api/v1",
+	requesty: "https://router.requesty.ai/v1",
 	ttapi: "https://api.ttapi.io",
 	gemini: "https://generativelanguage.googleapis.com",
 	google: "https://generativelanguage.googleapis.com",
@@ -61,6 +63,7 @@ const PROVIDER_API_KEY_PLACEHOLDER_MAP: Record<string, string> = {
 	google: "Google API Key",
 	gemini: "Google API Key",
 	openrouter: "OpenRouter API Key",
+	requesty: "Requesty API Key",
 	alibabacloud: "Aliyun (Bailian) API Key",
 	dashscope: "Aliyun (Bailian) API Key",
 	qwen: "Aliyun (Bailian) API Key",
