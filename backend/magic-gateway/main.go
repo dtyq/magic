@@ -974,8 +974,27 @@ func cleanupExpiredTokens() {
 	// 无需手动清理
 }
 
+// isSupportedService 检查服务名称是否在白名单 supportedServices 中。
+// getServiceInfo 和路径3的环境变量回退都必须先过这一关：envVars 装的是
+// os.Environ() 的完整快照（进程能看到的所有环境变量，不只是本网关的），
+// 所以任何一处跳过这个检查，都会把服务名参数变成对整个进程环境的
+// "{任意字符串}_API_URL"/"{任意字符串}_API_KEY" 探测器。
+func isSupportedService(service string) bool {
+	upper := strings.ToUpper(service)
+	for _, supportedService := range supportedServices {
+		if upper == supportedService {
+			return true
+		}
+	}
+	return false
+}
+
 // 获取服务信息
 func getServiceInfo(service string) (string, string, bool) {
+	if !isSupportedService(service) {
+		return "", "", false
+	}
+
 	baseUrlKey := fmt.Sprintf("%s_API_BASE_URL", strings.ToUpper(service))
 	apiKeyKey := fmt.Sprintf("%s_API_KEY", strings.ToUpper(service))
 
@@ -1136,7 +1155,11 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 3. 如果仍未找到目标，尝试从路径中提取服务名用于环境变量查找
-		if targetBase == "" && strings.Contains(path, "/") {
+		// 必须先检查白名单：serviceName 直接来自请求路径，如果跳过这一步，
+		// 就等于让调用方以 "{任意字符串}_API_URL"/"{任意字符串}_API_KEY" 的
+		// 形式探测并代理到进程环境变量里任何匹配这个命名模式的密钥，而不只是
+		// supportedServices 里明确允许的服务（对齐路径1和 getServiceInfo 已有的检查）。
+		if targetBase == "" && strings.Contains(path, "/") && isSupportedService(strings.SplitN(path, "/", 2)[0]) {
 			serviceName := strings.SplitN(path, "/", 2)[0]
 			envVarName := fmt.Sprintf("%s_API_URL", strings.ToUpper(serviceName))
 			if envValue, exists := envVars[envVarName]; exists {
