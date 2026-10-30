@@ -207,4 +207,4 @@ This repository is licensed under the [Magic Open Source License](LICENSE), base
 
 Thanks to all developers who have contributed to Magic!
 
-[![Star History Chart](https://api.star-history.com/svg?repos=dtyq/magic&type=Date)](https://star-history.com/#dtyq/magic&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=dtyq/magic&type=Date)](https://star-history.dera.page/#dtyq/magic&Date)

@@ -207,4 +207,4 @@ curl -fsSL https://getmagicrew.sh | bash
 
 感谢所有为超级麦吉做出贡献的开发者！
 
-[![Star History Chart](https://api.star-history.com/svg?repos=dtyq/magic&type=Date)](https://star-history.com/#dtyq/magic&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=dtyq/magic&type=Date)](https://star-history.dera.page/#dtyq/magic&Date)
