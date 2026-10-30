@@ -1,6 +1,7 @@
 <div align="left">
   <a href="./README.md"><img alt="README in English" src="https://img.shields.io/badge/English-d9d9d9" height="20"></a>
   <a href="./README_CN.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9" height="20"></a>
+  <a href="./README_JA.md"><img alt="日本語版README" src="https://img.shields.io/badge/日本語-d9d9d9" height="20"></a>
   <a href="#自托管部署"><img alt="现在部署！" src="https://img.shields.io/badge/现在部署%21-red" height="20"></a>
 </div>
 
